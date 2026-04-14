@@ -4,19 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>Dear Diary | 云端日记本</title>
+    <!-- 使用国内可访问的 CDN 加载 Font Awesome 和 字体 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.1.0/style.css" rel="stylesheet">
-    <!-- Firebase SDK -->
-    <script type="importmap">
-        {
-            "imports": {
-                "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
-                "firebase/auth": "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js",
-                "firebase/firestore": "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"
-            }
-        }
-    </script>
     <style>
+        /* 所有样式直接内联，不再引用外部 style.css */
         /* ========== 完整样式（基于第三十八次版本） ========== */
         :root {
             --bg-main: #e9eef3;
@@ -331,6 +322,10 @@
         }
         button { background: none; cursor: pointer; }
     </style>
+    <!-- 使用国内 CDN 加载 Firebase SDK，加速访问 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.8.0/firebase-app-compat.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.8.0/firebase-auth-compat.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.8.0/firebase-firestore-compat.min.js"></script>
 </head>
 <body>
 <div class="app-container">
@@ -375,25 +370,21 @@
 <div class="easter-egg" id="easterEggBtn">🐾</div>
 <div class="sound-tip" id="soundTip">🔊 音效已启用，点击任意按钮体验</div>
 
-<script type="module">
-    import { initializeApp } from "firebase/app";
-    import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
-    import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, query, where, getDocs } from "firebase/firestore";
-
+<script>
     // ========== 请替换为您自己的 Firebase 配置 ==========
     const firebaseConfig = {
-          apiKey: "AIzaSyAhNooPGlzAbv3NqDU3n8IeLhWy5uLRbUI",
-          authDomain: "deardiary-6c680.firebaseapp.com",
-          projectId: "deardiary-6c680",
-          storageBucket: "deardiary-6c680.firebasestorage.app",
-          messagingSenderId: "588541961181",
-          appId: "1:588541961181:web:ddfc17d0184fc953fccc34"
+        apiKey: "YOUR_API_KEY",
+        authDomain: "deardiary-6c680.firebaseapp.com",
+        projectId: "deardiary-6c680",
+        storageBucket: "deardiary-6c680.appspot.com",
+        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+        appId: "YOUR_APP_ID"
     };
 
-    // 初始化 Firebase
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
+    // 初始化 Firebase（使用 compat 版本）
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
 
     // ---------- 应用状态 ----------
     let currentUser = null;
@@ -484,8 +475,8 @@
     // 数据云端保存
     async function saveToCloud() {
         if (!currentUser) return;
-        const userDocRef = doc(db, "users", currentUser.uid);
-        await setDoc(userDocRef, {
+        const userDocRef = db.collection("users").doc(currentUser.uid);
+        await userDocRef.set({
             notebooks: appData.notebooks,
             entries: appData.entries,
             lastUpdated: new Date().toISOString()
@@ -495,9 +486,9 @@
     // 从云端加载数据
     async function loadFromCloud() {
         if (!currentUser) return;
-        const userDocRef = doc(db, "users", currentUser.uid);
-        const docSnap = await getDoc(userDocRef);
-        if (docSnap.exists()) {
+        const userDocRef = db.collection("users").doc(currentUser.uid);
+        const docSnap = await userDocRef.get();
+        if (docSnap.exists) {
             const data = docSnap.data();
             appData.notebooks = data.notebooks || [];
             appData.entries = data.entries || [];
@@ -1173,7 +1164,7 @@
             const email = modal.querySelector('#loginEmail').value;
             const pwd = modal.querySelector('#loginPassword').value;
             try {
-                await signInWithEmailAndPassword(auth, email, pwd);
+                await auth.signInWithEmailAndPassword(email, pwd);
                 close();
             } catch(err) { alert("登录失败: " + err.message); }
         };
@@ -1181,18 +1172,18 @@
             const email = modal.querySelector('#loginEmail').value;
             const pwd = modal.querySelector('#loginPassword').value;
             try {
-                await createUserWithEmailAndPassword(auth, email, pwd);
+                await auth.createUserWithEmailAndPassword(email, pwd);
                 close();
             } catch(err) { alert("注册失败: " + err.message); }
         };
     }
 
     async function handleLogout() {
-        await signOut(auth);
+        await auth.signOut();
     }
 
     // 监听认证状态
-    onAuthStateChanged(auth, async (user) => {
+    auth.onAuthStateChanged(async (user) => {
         currentUser = user;
         if (user) {
             document.getElementById("userEmail").textContent = user.email;
