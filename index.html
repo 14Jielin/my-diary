@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <meta name="referrer" content="no-referrer">
     <title>笔记本</title>
-    <script src="https://imgcache.qq.com/qcloud/cloudbase-js-sdk/2.17.3/cloudbase.full.js"></script>
+    <script src="https://unpkg.com/@cloudbase/js-sdk@2.17.3/dist/index.umd.js" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
+        /* ========== 完整样式（与之前相同） ========== */
         :root {
             --bg-main: #e9eef3;
             --bg-paper: #ffffff;
@@ -423,8 +425,11 @@
 </div>
 <div class="easter-egg" id="easterEggBtn">🐾</div>
 <script>
-    // ========== CloudBase 配置 ==========
-    const ENV_ID = "mlb-gg-3gs4nsbl5fefaec3";   // 已填入您的环境ID
+    if (typeof cloudbase === 'undefined') {
+        alert("SDK加载失败，请检查网络或刷新页面重试。");
+        throw new Error("cloudbase not defined");
+    }
+    const ENV_ID = "mlb-gg-3gs4nsbl5fefaec3";
     const app = cloudbase.init({ env: ENV_ID });
     const auth = app.auth();
     const db = app.database();
