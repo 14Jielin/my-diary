@@ -3,12 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <meta name="referrer" content="no-referrer">
-    <title>笔记本</title>
-    <script src="https://unpkg.com/@cloudbase/js-sdk@2.17.3/dist/index.umd.js" crossorigin="anonymous"></script>
+    <title>Dear Diary | 云端日记本</title>
+    <!-- 备用 CloudBase SDK 加载（使用国内稳定 CDN） -->
+    <script src="https://web.sdk.qcloud.com/tcb/2.17.3/cloudbase.full.js"></script>
+    <script>
+        // SDK 加载失败时的备用 CDN
+        if (typeof cloudbase === 'undefined') {
+            document.write('<script src="https://cdn.jsdelivr.net/npm/@cloudbase/js-sdk@2.17.3/standalone/cloudbase.full.js"><\/script>');
+        }
+    </script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
-        /* ========== 完整样式（与之前相同） ========== */
+        /* 样式与之前完全相同，为节省篇幅此处省略，实际使用时请自行保留完整样式 */
+        /* 但为保证可运行，我会包含完整样式 */
         :root {
             --bg-main: #e9eef3;
             --bg-paper: #ffffff;
@@ -425,14 +432,28 @@
 </div>
 <div class="easter-egg" id="easterEggBtn">🐾</div>
 <script>
-    if (typeof cloudbase === 'undefined') {
-        alert("SDK加载失败，请检查网络或刷新页面重试。");
-        throw new Error("cloudbase not defined");
-    }
+    // ========== CloudBase 配置 ==========
     const ENV_ID = "mlb-gg-3gs4nsbl5fefaec3";
-    const app = cloudbase.init({ env: ENV_ID });
-    const auth = app.auth();
-    const db = app.database();
+    
+    // 等待 SDK 加载完成
+    function initCloudBase() {
+        if (typeof cloudbase === 'undefined') {
+            document.body.innerHTML = '<div style="display:flex; justify-content:center; align-items:center; height:100vh; flex-direction:column; gap:20px;"><h2>SDK加载失败</h2><p>请检查网络连接，或<a href="javascript:location.reload()">刷新页面重试</a>。</p><p>如果问题持续，请联系管理员。</p></div>';
+            return false;
+        }
+        const app = cloudbase.init({ env: ENV_ID });
+        window._cloudbaseApp = app;
+        window.auth = app.auth();
+        window.db = app.database();
+        return true;
+    }
+    
+    if (!initCloudBase()) {
+        throw new Error("CloudBase SDK not loaded");
+    }
+    
+    const auth = window.auth;
+    const db = window.db;
 
     let currentUser = null;
     let appData = { notebooks: [], entries: [] };
