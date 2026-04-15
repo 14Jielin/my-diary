@@ -4,12 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>笔记本</title>
-    <!-- CloudBase SDK -->
     <script src="https://imgcache.qq.com/qcloud/cloudbase-js-sdk/2.17.3/cloudbase.full.js"></script>
-    <!-- Font Awesome 6 (用于图标) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
-        /* ========== 样式（与之前相同，无改动） ========== */
         :root {
             --bg-main: #e9eef3;
             --bg-paper: #ffffff;
@@ -369,6 +366,20 @@
         .logout-btn { background: #d9b48b; border: none; border-radius: 30px; padding: 4px 12px; cursor: pointer; font-size: 0.8rem; }
         .view { display: flex; flex-direction: column; height: 100%; width: 100%; }
         .hide-view { display: none; }
+        .error-toast {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: #e74c3c;
+            color: white;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            z-index: 10000;
+            max-width: 80%;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            pointer-events: none;
+        }
         @media (max-width: 800px) { .sidebar { flex-basis: 280px; } .a5-container { padding: 16px; } }
         @media (max-width: 700px) { .sidebar { flex-basis: 240px; } .stack-card { width: 130px; } }
     </style>
@@ -410,20 +421,14 @@
         </div>
     </div>
 </div>
-<div class="easter-egg" id="easterEggBtn">🌼</div>
+<div class="easter-egg" id="easterEggBtn">🐾</div>
 <script>
     // ========== CloudBase 配置 ==========
-    // 请替换为您的 CloudBase 环境 ID（在控制台 -> 环境设置 中获取）
-    const ENV_ID = "mlb-gg-3gs4nsbl5fefaec3";   // <--- 重要：修改为您的环境ID
-    
-    // 初始化 CloudBase
-    const app = cloudbase.init({
-        env: ENV_ID
-    });
+    const ENV_ID = "mlb-gg-3gs4nsbl5fefaec3";   // 已填入您的环境ID
+    const app = cloudbase.init({ env: ENV_ID });
     const auth = app.auth();
     const db = app.database();
 
-    // 全局状态
     let currentUser = null;
     let appData = { notebooks: [], entries: [] };
     let currentNotebookId = null;
@@ -433,10 +438,21 @@
     let isSidebarCollapsed = false;
     let currentCoverStyle = { backgroundColor: "#f9ddd6", backgroundImage: null };
 
-    // 辅助函数
+    function showError(msg) {
+        let toast = document.querySelector('.error-toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.className = 'error-toast';
+            document.body.appendChild(toast);
+        }
+        toast.textContent = msg;
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 5000);
+        console.error(msg);
+    }
+
     function escapeHtml(str) { if(!str) return ''; return str.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
     
-    // 保存数据到 CloudBase
     async function saveToCloud() {
         if (!currentUser) return;
         const userDoc = db.collection('users').doc(currentUser.uid);
@@ -447,7 +463,6 @@
         });
     }
 
-    // 从 CloudBase 加载数据
     async function loadFromCloud() {
         if (!currentUser) return;
         const userDoc = db.collection('users').doc(currentUser.uid);
@@ -502,7 +517,6 @@
         if(nb) { nb.coverStyle = {...currentCoverStyle}; saveToCloud(); }
     }
 
-    // 侧边栏折叠
     function toggleSidebar() {
         isSidebarCollapsed = !isSidebarCollapsed;
         document.getElementById("sidebar").classList.toggle("collapsed", isSidebarCollapsed);
@@ -512,7 +526,6 @@
         if(localStorage.getItem("sidebar_collapsed")==='true') toggleSidebar();
     }
 
-    // 笔记本列表渲染
     async function renderNotebookList() {
         const container = document.getElementById("notebookListContainer");
         if(!container) return;
@@ -520,7 +533,7 @@
             container.innerHTML="<div style='padding:8px;color:var(--text-muted);'>✨ 暂无日记本</div>";
             return;
         }
-        container.innerHTML = appData.notebooks.map(nb=>`<div class="notebook-item ${currentNotebookId===nb.id?'active':''}" data-id="${nb.id}"><div class="notebook-info"><span class="notebook-name">✨ ${escapeHtml(nb.name)}</span><span class="notebook-count">${appData.entries.filter(e=>e.notebookId===nb.id).length} 篇</span></div><div class="notebook-actions"><button class="action-icon-sm rename-notebook" data-id="${nb.id}"><i class="fas fa-pen"></i></button><button class="action-icon-sm change-cover" data-id="${nb.id}"><i class="fas fa-image"></i></button><button class="del-notebook" data-id="${nb.id}"><i class="fas fa-trash-alt"></i></button></div></div>`).join('');
+        container.innerHTML = appData.notebooks.map(nb=>`<div class="notebook-item ${currentNotebookId===nb.id?'active':''}" data-id="${nb.id}"><div class="notebook-info"><span class="notebook-name">📔 ${escapeHtml(nb.name)}</span><span class="notebook-count">${appData.entries.filter(e=>e.notebookId===nb.id).length} 篇</span></div><div class="notebook-actions"><button class="action-icon-sm rename-notebook" data-id="${nb.id}"><i class="fas fa-pen"></i></button><button class="action-icon-sm change-cover" data-id="${nb.id}"><i class="fas fa-image"></i></button><button class="del-notebook" data-id="${nb.id}"><i class="fas fa-trash-alt"></i></button></div></div>`).join('');
         document.querySelectorAll('.notebook-item').forEach(el=>el.addEventListener('click',(e)=>{ if(!e.target.closest('.notebook-actions')) switchNotebook(el.dataset.id); }));
         document.querySelectorAll('.rename-notebook').forEach(btn=>btn.addEventListener('click',async(e)=>{ e.stopPropagation(); const nbId=btn.dataset.id, nb=appData.notebooks.find(n=>n.id===nbId); if(nb){ const newName=prompt("新名称",nb.name); if(newName) { nb.name=newName; await saveToCloud(); renderNotebookList(); if(currentNotebookId===nbId) renderCoverPage(); } } }));
         document.querySelectorAll('.change-cover').forEach(btn=>btn.addEventListener('click',(e)=>{ e.stopPropagation(); const nbId=btn.dataset.id; showCoverCustomModal(appData.notebooks.find(n=>n.id===nbId)); }));
@@ -548,7 +561,6 @@
         refreshCurrentUI();
     }
 
-    // 视图切换
     function refreshCurrentUI() {
         if(currentMode==="cover") renderCoverPage();
         else if(currentMode==="stack") renderStackPage();
@@ -686,7 +698,6 @@
         });
     }
 
-    // 烟花效果（双击左侧栏空白处）
     const fireworkTypes=['burst','heart','star','circle'];
     function createFirework(type){
         const layer=document.createElement('div'); layer.className='firework-layer'; document.body.appendChild(layer);
@@ -707,9 +718,8 @@
         setTimeout(()=>layer.remove(),1700);
     }
     function randomFirework(){ createFirework(fireworkTypes[Math.floor(Math.random()*fireworkTypes.length)]); }
-    function startPetalFall(){ for(let i=0;i<80;i++) setTimeout(()=>{ const p=document.createElement('div'); p.className='petal'; const icons=['🌸','🌼','🍃','✨','❤️','🌟']; p.textContent=icons[Math.floor(Math.random()*icons.length)]; p.style.left=Math.random()*window.innerWidth+'px'; p.style.top='-30px'; p.style.fontSize=(18+Math.random()*14)+'px'; p.style.animation=`fall 2.5s ease-in forwards`; document.body.appendChild(p); setTimeout(()=>p.remove(),2500); },i*35); }
+    function startPetalFall(){ for(let i=0;i<80;i++) setTimeout(()=>{ const p=document.createElement('div'); p.className='petal'; const icons=['🌸','🌼','🍃','✨','🐾','❤️','🌟']; p.textContent=icons[Math.floor(Math.random()*icons.length)]; p.style.left=Math.random()*window.innerWidth+'px'; p.style.top='-30px'; p.style.fontSize=(18+Math.random()*14)+'px'; p.style.animation=`fall 2.5s ease-in forwards`; document.body.appendChild(p); setTimeout(()=>p.remove(),2500); },i*35); }
 
-    // CloudBase 匿名登录
     async function initAuth() {
         try {
             await auth.signInAnonymously();
@@ -718,12 +728,10 @@
             document.getElementById("userInfoArea").style.display = "flex";
             await loadFromCloud();
         } catch (err) {
-            console.error("登录失败", err);
-            alert("登录失败，请检查网络或环境ID配置。错误：" + err.message);
+            showError("登录失败：" + err.message + "。请检查：1) 环境ID是否正确 2) 匿名登录是否开启 3) 网络是否通畅");
         }
     }
 
-    // 重置数据（相当于登出并清空本地）
     function resetData() {
         if(confirm("重置将清除所有本地缓存并重新登录，是否继续？")) {
             localStorage.clear();
@@ -731,7 +739,6 @@
         }
     }
 
-    // 主题切换
     function initTheme() {
         const themeBtns = document.querySelectorAll('.theme-btn');
         const themeHandler = (e) => {
@@ -753,7 +760,6 @@
         }
     }
 
-    // 事件绑定
     document.getElementById("toggleSidebarBtn").addEventListener("click", toggleSidebar);
     document.getElementById("addDiaryBtn").onclick=()=>showEditView(null,true);
     document.getElementById("addNotebookBtn").onclick=async()=>{ const name=prompt("日记本名称"); if(name){ const newId="nb_"+Date.now(); appData.notebooks.push({ id:newId, name:name, coverImageUrl:"https://picsum.photos/id/101/400/500" }); await saveToCloud(); await switchNotebook(newId); } };
