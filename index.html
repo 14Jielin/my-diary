@@ -4,11 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>笔记本</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.8.0/firebase-app-compat.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.8.0/firebase-auth-compat.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.8.0/firebase-firestore-compat.min.js"></script>
+    <!-- CloudBase SDK -->
+    <script src="https://imgcache.qq.com/qcloud/cloudbase-js-sdk/2.17.3/cloudbase.full.js"></script>
+    <!-- Font Awesome 6 (用于图标) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
+        /* ========== 样式（与之前相同，无改动） ========== */
         :root {
             --bg-main: #e9eef3;
             --bg-paper: #ffffff;
@@ -364,11 +365,6 @@
         @keyframes fall { 0% { transform: translateY(0) rotate(0deg); opacity: 1; } 100% { transform: translateY(400px) rotate(360deg); opacity: 0; } }
         .easter-egg { position: fixed; bottom: 24px; right: 24px; width: 48px; height: 48px; background: rgba(255,220,180,0.95); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 1000; font-size: 24px; }
         .easter-egg:hover { transform: scale(1.1); }
-        .login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 3000; }
-        .login-card { background: #fffef7; border-radius: 32px; width: 380px; max-width: 90%; padding: 32px; text-align: center; }
-        .login-card h3 { font-size: 1.8rem; color: #5a3e2b; margin-bottom: 20px; }
-        .login-card input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ffd9b5; border-radius: 40px; font-size: 1rem; }
-        .login-card button { background: #e48f3b; color: white; border: none; padding: 10px 20px; border-radius: 40px; margin: 8px; cursor: pointer; font-size: 1rem; }
         .user-info { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: #fff2e4; border-radius: 40px; margin-bottom: 12px; }
         .logout-btn { background: #d9b48b; border: none; border-radius: 30px; padding: 4px 12px; cursor: pointer; font-size: 0.8rem; }
         .view { display: flex; flex-direction: column; height: 100%; width: 100%; }
@@ -390,8 +386,8 @@
             <button class="toggle-sidebar-btn" id="toggleSidebarBtn"><i class="fas fa-chevron-left" id="toggleIcon"></i></button>
         </div>
         <div id="userInfoArea" class="user-info" style="display: none;">
-            <span id="userEmail"></span>
-            <button id="logoutBtn" class="logout-btn">登出</button>
+            <span id="userEmail">匿名用户</span>
+            <button id="logoutBtn" class="logout-btn">重置</button>
         </div>
         <div class="nav-buttons">
             <div class="nav-btn" id="addDiaryBtn"><i class="fas fa-plus-circle"></i> <span>新增日记</span></div>
@@ -414,20 +410,20 @@
         </div>
     </div>
 </div>
-<div class="easter-egg" id="easterEggBtn">🍃</div>
+<div class="easter-egg" id="easterEggBtn">🌼</div>
 <script>
-    const firebaseConfig = {
-        apiKey: "AIzaSyAhNooPGlzAbv3NqDU3n8IeLhWy5uLRbUI",
-        authDomain: "deardiary-6c680.firebaseapp.com",
-        projectId: "deardiary-6c680",
-        storageBucket: "deardiary-6c680.firebasestorage.app",
-        messagingSenderId: "588541961181",
-        appId: "1:588541961181:web:ddfc17d0184fc953fccc34"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
-    const db = firebase.firestore();
+    // ========== CloudBase 配置 ==========
+    // 请替换为您的 CloudBase 环境 ID（在控制台 -> 环境设置 中获取）
+    const ENV_ID = "mlb-gg-3gs4nsbl5fefaec3";   // <--- 重要：修改为您的环境ID
+    
+    // 初始化 CloudBase
+    const app = cloudbase.init({
+        env: ENV_ID
+    });
+    const auth = app.auth();
+    const db = app.database();
 
+    // 全局状态
     let currentUser = null;
     let appData = { notebooks: [], entries: [] };
     let currentNotebookId = null;
@@ -437,13 +433,27 @@
     let isSidebarCollapsed = false;
     let currentCoverStyle = { backgroundColor: "#f9ddd6", backgroundImage: null };
 
+    // 辅助函数
     function escapeHtml(str) { if(!str) return ''; return str.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
-    function saveToCloud() { if(currentUser) db.collection("users").doc(currentUser.uid).set({ notebooks: appData.notebooks, entries: appData.entries, lastUpdated: new Date().toISOString() }, { merge: true }); }
+    
+    // 保存数据到 CloudBase
+    async function saveToCloud() {
+        if (!currentUser) return;
+        const userDoc = db.collection('users').doc(currentUser.uid);
+        await userDoc.set({
+            notebooks: appData.notebooks,
+            entries: appData.entries,
+            lastUpdated: new Date().toISOString()
+        });
+    }
+
+    // 从 CloudBase 加载数据
     async function loadFromCloud() {
-        if(!currentUser) return;
-        const doc = await db.collection("users").doc(currentUser.uid).get();
-        if(doc.exists) {
-            const data = doc.data();
+        if (!currentUser) return;
+        const userDoc = db.collection('users').doc(currentUser.uid);
+        const res = await userDoc.get();
+        if (res.data) {
+            const data = res.data;
             appData.notebooks = data.notebooks || [];
             appData.entries = data.entries || [];
             for(let e of appData.entries) {
@@ -453,39 +463,72 @@
                 if(!e.contentHtml) e.contentHtml = e.content ? escapeHtml(e.content).replace(/\n/g, '<br>') : "";
             }
             for(let nb of appData.notebooks) if(!nb.coverImageUrl) nb.coverImageUrl = "https://picsum.photos/id/104/400/500";
-        } else initDefaultData();
+        } else {
+            initDefaultData();
+            await saveToCloud();
+        }
         if(appData.notebooks.length===0) initDefaultData();
         if(!currentNotebookId || !appData.notebooks.find(n=>n.id==currentNotebookId)) currentNotebookId = appData.notebooks[0]?.id;
         loadCoverStyle();
         renderNotebookList();
         refreshCurrentUI();
     }
+
     function initDefaultData() {
-        appData.notebooks = [{ id:"nb_1", name:"春日随想", coverImageUrl:"https://picsum.photos/id/20/400/500" }, { id:"nb_2", name:"工作笔记", coverImageUrl:"https://picsum.photos/id/26/400/500" }];
+        appData.notebooks = [
+            { id: "nb_1", name: "春日随想", coverImageUrl: "https://picsum.photos/id/20/400/500" },
+            { id: "nb_2", name: "工作笔记", coverImageUrl: "https://picsum.photos/id/26/400/500" }
+        ];
         const t = new Date().toISOString();
         appData.entries = [
-            { id:"e1", notebookId:"nb_1", title:"初春的雨", content:"窗外的雨淅淅沥沥...", contentHtml:"窗外的雨淅淅沥沥...", createdAt:t, updatedAt:t, cardColor:"#E6F0FA", diaryDate:"2025-03-10", textAlign:"left" },
-            { id:"e2", notebookId:"nb_1", title:"樱花盛开", content:"公园里的樱花开了...", contentHtml:"公园里的樱花开了...", createdAt:t, updatedAt:t, cardColor:"#FFE6F0", diaryDate:"2025-03-15", textAlign:"left" }
+            { id: "e1", notebookId: "nb_1", title: "初春的雨", content: "窗外的雨淅淅沥沥...", contentHtml: "窗外的雨淅淅沥沥...", createdAt: t, updatedAt: t, cardColor: "#E6F0FA", diaryDate: "2025-03-10", textAlign: "left" },
+            { id: "e2", notebookId: "nb_1", title: "樱花盛开", content: "公园里的樱花开了...", contentHtml: "公园里的樱花开了...", createdAt: t, updatedAt: t, cardColor: "#FFE6F0", diaryDate: "2025-03-15", textAlign: "left" }
         ];
         currentNotebookId = "nb_1";
     }
-    function getCurrentEntries() { return appData.entries.filter(e=>e.notebookId===currentNotebookId).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)); }
-    function loadCoverStyle() { const nb = appData.notebooks.find(n=>n.id===currentNotebookId); if(nb && nb.coverStyle) currentCoverStyle = nb.coverStyle; else currentCoverStyle = { backgroundColor:"#f9ddd6", backgroundImage:null }; }
-    function saveCoverStyle() { const nb = appData.notebooks.find(n=>n.id===currentNotebookId); if(nb) { nb.coverStyle = {...currentCoverStyle}; saveToCloud(); } }
-    function toggleSidebar() { isSidebarCollapsed = !isSidebarCollapsed; document.getElementById("sidebar").classList.toggle("collapsed", isSidebarCollapsed); localStorage.setItem("sidebar_collapsed", isSidebarCollapsed); }
-    function loadSidebarState() { if(localStorage.getItem("sidebar_collapsed")==='true') toggleSidebar(); }
+
+    function getCurrentEntries() {
+        return appData.entries.filter(e=>e.notebookId===currentNotebookId).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+    }
+
+    function loadCoverStyle() {
+        const nb = appData.notebooks.find(n=>n.id===currentNotebookId);
+        if(nb && nb.coverStyle) currentCoverStyle = nb.coverStyle;
+        else currentCoverStyle = { backgroundColor: "#f9ddd6", backgroundImage: null };
+    }
+
+    function saveCoverStyle() {
+        const nb = appData.notebooks.find(n=>n.id===currentNotebookId);
+        if(nb) { nb.coverStyle = {...currentCoverStyle}; saveToCloud(); }
+    }
+
+    // 侧边栏折叠
+    function toggleSidebar() {
+        isSidebarCollapsed = !isSidebarCollapsed;
+        document.getElementById("sidebar").classList.toggle("collapsed", isSidebarCollapsed);
+        localStorage.setItem("sidebar_collapsed", isSidebarCollapsed);
+    }
+    function loadSidebarState() {
+        if(localStorage.getItem("sidebar_collapsed")==='true') toggleSidebar();
+    }
+
+    // 笔记本列表渲染
     async function renderNotebookList() {
         const container = document.getElementById("notebookListContainer");
         if(!container) return;
-        if(appData.notebooks.length===0) { container.innerHTML="<div style='padding:8px;color:var(--text-muted);'>✨ 暂无日记本</div>"; return; }
+        if(appData.notebooks.length===0) {
+            container.innerHTML="<div style='padding:8px;color:var(--text-muted);'>✨ 暂无日记本</div>";
+            return;
+        }
         container.innerHTML = appData.notebooks.map(nb=>`<div class="notebook-item ${currentNotebookId===nb.id?'active':''}" data-id="${nb.id}"><div class="notebook-info"><span class="notebook-name">✨ ${escapeHtml(nb.name)}</span><span class="notebook-count">${appData.entries.filter(e=>e.notebookId===nb.id).length} 篇</span></div><div class="notebook-actions"><button class="action-icon-sm rename-notebook" data-id="${nb.id}"><i class="fas fa-pen"></i></button><button class="action-icon-sm change-cover" data-id="${nb.id}"><i class="fas fa-image"></i></button><button class="del-notebook" data-id="${nb.id}"><i class="fas fa-trash-alt"></i></button></div></div>`).join('');
         document.querySelectorAll('.notebook-item').forEach(el=>el.addEventListener('click',(e)=>{ if(!e.target.closest('.notebook-actions')) switchNotebook(el.dataset.id); }));
         document.querySelectorAll('.rename-notebook').forEach(btn=>btn.addEventListener('click',async(e)=>{ e.stopPropagation(); const nbId=btn.dataset.id, nb=appData.notebooks.find(n=>n.id===nbId); if(nb){ const newName=prompt("新名称",nb.name); if(newName) { nb.name=newName; await saveToCloud(); renderNotebookList(); if(currentNotebookId===nbId) renderCoverPage(); } } }));
         document.querySelectorAll('.change-cover').forEach(btn=>btn.addEventListener('click',(e)=>{ e.stopPropagation(); const nbId=btn.dataset.id; showCoverCustomModal(appData.notebooks.find(n=>n.id===nbId)); }));
         document.querySelectorAll('.del-notebook').forEach(btn=>btn.addEventListener('click',async(e)=>{ e.stopPropagation(); const nbId=btn.dataset.id; if(confirm("删除日记本及所有日记？")){ appData.notebooks=appData.notebooks.filter(n=>n.id!==nbId); appData.entries=appData.entries.filter(e=>e.notebookId!==nbId); if(appData.notebooks.length===0) initDefaultData(); if(currentNotebookId===nbId) currentNotebookId=appData.notebooks[0]?.id; await saveToCloud(); renderNotebookList(); showCoverView(); refreshCurrentUI(); } }));
     }
+
     function showCoverCustomModal(notebook) {
-        let style = notebook.coverStyle || { backgroundColor:"#f9ddd6", backgroundImage:null };
+        let style = notebook.coverStyle || { backgroundColor: "#f9ddd6", backgroundImage: null };
         const modal = document.createElement('div'); modal.className='login-overlay'; modal.innerHTML=`<div class="login-card"><h3>定制封面</h3><div class="color-row"><span>🎨 背景色</span><input type="color" id="modalColorPicker" value="${style.backgroundColor}"></div><button id="modalUploadImageBtn">上传图片</button><button id="modalResetBtn">重置为纯色</button><button id="modalCloseBtn">关闭</button></div>`;
         document.body.appendChild(modal);
         const colorPicker=modal.querySelector('#modalColorPicker'), uploadBtn=modal.querySelector('#modalUploadImageBtn'), resetBtn=modal.querySelector('#modalResetBtn'), closeBtn=modal.querySelector('#modalCloseBtn');
@@ -494,13 +537,31 @@
         resetBtn.addEventListener('click',async()=>{ style={backgroundColor:"#f9ddd6", backgroundImage:null}; notebook.coverStyle=style; colorPicker.value="#f9ddd6"; await saveToCloud(); if(currentNotebookId===notebook.id){ currentCoverStyle=style; if(currentMode==='cover') renderCoverPage(); } });
         closeBtn.onclick=()=>modal.remove();
     }
-    async function switchNotebook(id) { currentNotebookId=id; currentStackIndex=0; loadCoverStyle(); await saveToCloud(); renderNotebookList(); showCoverView(); refreshCurrentUI(); }
-    function refreshCurrentUI() { if(currentMode==="cover") renderCoverPage(); else if(currentMode==="stack") renderStackPage(); else if(currentMode==="read"&&currentEntry) renderReadPage(); else if(currentMode==="edit") renderEditPage(); else showCoverView(); }
+
+    async function switchNotebook(id) {
+        currentNotebookId=id;
+        currentStackIndex=0;
+        loadCoverStyle();
+        await saveToCloud();
+        renderNotebookList();
+        showCoverView();
+        refreshCurrentUI();
+    }
+
+    // 视图切换
+    function refreshCurrentUI() {
+        if(currentMode==="cover") renderCoverPage();
+        else if(currentMode==="stack") renderStackPage();
+        else if(currentMode==="read"&&currentEntry) renderReadPage();
+        else if(currentMode==="edit") renderEditPage();
+        else showCoverView();
+    }
     function showCoverView() { currentMode="cover"; hideAllViews(); document.getElementById("coverView").classList.remove("hide-view"); renderCoverPage(); }
     function showStackView() { currentMode="stack"; hideAllViews(); document.getElementById("stackView").classList.remove("hide-view"); renderStackPage(); }
     function showReadView(entry) { currentEntry=entry; currentMode="read"; hideAllViews(); document.getElementById("readView").classList.remove("hide-view"); renderReadPage(); }
     function showEditView(entryForEdit, isNew=false) { if(entryForEdit) currentEntry={...entryForEdit}; else currentEntry=null; currentMode="edit"; hideAllViews(); document.getElementById("editView").classList.remove("hide-view"); renderEditPage(isNew); }
     function hideAllViews() { ["coverView","stackView","readView","editView"].forEach(id=>document.getElementById(id).classList.add("hide-view")); }
+
     function renderCoverPage() {
         const notebook = appData.notebooks.find(n=>n.id===currentNotebookId);
         if(!notebook) return;
@@ -509,6 +570,7 @@
         document.getElementById("coverView").innerHTML = `<div class="cover-book-wrapper clickable-cover" id="fullCoverClick" style="${styleStr}"><div class="cover-stiches-top"></div><div class="cover-stiches-bottom"></div><div class="cover-stiches-right"></div><div class="cover-content"><div class="title-wrapper"><div class="title-bg"></div><div class="notebook-title-cover">${escapeHtml(notebook.name)}</div></div></div></div>`;
         document.getElementById("fullCoverClick")?.addEventListener("click",()=>showStackView());
     }
+
     function renderStackPage() {
         const entries = getCurrentEntries();
         const container = document.getElementById("stackView");
@@ -546,6 +608,7 @@
         if(next){ if(currentStackIndex===total-1) next.classList.add("hidden-btn"); else next.classList.remove("hidden-btn"); next.onclick=()=>{ if(currentStackIndex<total-1) { currentStackIndex++; renderStackPage(); } }; }
         document.querySelectorAll("#cardsStack .stack-card").forEach(c=>{ const idx=parseInt(c.dataset.index); c.onclick=()=>{ if(idx===currentStackIndex){ const entry=appData.entries.find(e=>e.id===c.dataset.id); if(entry) showReadView(entry); } else { currentStackIndex=idx; renderStackPage(); } }; });
     }
+
     function renderReadPage() {
         if(!currentEntry) { showCoverView(); return; }
         const entry=currentEntry, bg=entry.cardColor||"#FFF3E6", align=entry.textAlign||"left";
@@ -554,7 +617,9 @@
         document.getElementById("deleteEntryBtn").onclick=async()=>{ if(confirm("删除？")){ appData.entries=appData.entries.filter(e=>e.id!==entry.id); await saveToCloud(); renderNotebookList(); if(getCurrentEntries().length===0) showCoverView(); else { currentStackIndex=0; showStackView(); } } };
         document.getElementById("editEntryBtn").onclick=()=>showEditView(entry,false);
     }
+
     function applyFormat(cmd,val=null) { const ed=document.getElementById("richEditor"); if(!ed) return; ed.focus(); if(cmd==='formatBlock') document.execCommand('formatBlock',false,val); else if(cmd==='foreColor'||cmd==='hiliteColor'){ document.execCommand('styleWithCSS',false,true); document.execCommand(cmd,false,val); } else document.execCommand(cmd,false,val); }
+
     function renderEditPage(isNew=false) {
         const notebook = appData.notebooks.find(n=>n.id===currentNotebookId);
         if(!notebook) return;
@@ -620,6 +685,8 @@
             document.execCommand('insertHTML', false, text.replace(/\n/g,'<br>'));
         });
     }
+
+    // 烟花效果（双击左侧栏空白处）
     const fireworkTypes=['burst','heart','star','circle'];
     function createFirework(type){
         const layer=document.createElement('div'); layer.className='firework-layer'; document.body.appendChild(layer);
@@ -641,28 +708,42 @@
     }
     function randomFirework(){ createFirework(fireworkTypes[Math.floor(Math.random()*fireworkTypes.length)]); }
     function startPetalFall(){ for(let i=0;i<80;i++) setTimeout(()=>{ const p=document.createElement('div'); p.className='petal'; const icons=['🌸','🌼','🍃','✨','❤️','🌟']; p.textContent=icons[Math.floor(Math.random()*icons.length)]; p.style.left=Math.random()*window.innerWidth+'px'; p.style.top='-30px'; p.style.fontSize=(18+Math.random()*14)+'px'; p.style.animation=`fall 2.5s ease-in forwards`; document.body.appendChild(p); setTimeout(()=>p.remove(),2500); },i*35); }
-    function showLoginModal(){
-        const modal=document.createElement('div'); modal.className='login-overlay'; modal.innerHTML=`<div class="login-card"><h3>Dear Diary</h3><input type="email" id="loginEmail" placeholder="邮箱"><input type="password" id="loginPassword" placeholder="密码"><button id="loginBtn">登录</button><button id="registerBtn">注册</button><button id="closeLoginBtn">取消</button></div>`;
-        document.body.appendChild(modal);
-        const close=()=>modal.remove();
-        modal.querySelector('#closeLoginBtn').onclick=close;
-        modal.querySelector('#loginBtn').onclick=async()=>{ try{ await auth.signInWithEmailAndPassword(modal.querySelector('#loginEmail').value, modal.querySelector('#loginPassword').value); close(); } catch(e){ alert("登录失败: "+e.message); } };
-        modal.querySelector('#registerBtn').onclick=async()=>{ try{ await auth.createUserWithEmailAndPassword(modal.querySelector('#loginEmail').value, modal.querySelector('#loginPassword').value); close(); } catch(e){ alert("注册失败: "+e.message); } };
+
+    // CloudBase 匿名登录
+    async function initAuth() {
+        try {
+            await auth.signInAnonymously();
+            currentUser = auth.currentUser;
+            document.getElementById("userEmail").textContent = "匿名用户";
+            document.getElementById("userInfoArea").style.display = "flex";
+            await loadFromCloud();
+        } catch (err) {
+            console.error("登录失败", err);
+            alert("登录失败，请检查网络或环境ID配置。错误：" + err.message);
+        }
     }
-    auth.onAuthStateChanged(async(user)=>{ currentUser=user; if(user){ document.getElementById("userEmail").textContent=user.email; document.getElementById("userInfoArea").style.display="flex"; await loadFromCloud(); } else { document.getElementById("userInfoArea").style.display="none"; showLoginModal(); } });
-    document.getElementById("logoutBtn").onclick=()=>auth.signOut();
+
+    // 重置数据（相当于登出并清空本地）
+    function resetData() {
+        if(confirm("重置将清除所有本地缓存并重新登录，是否继续？")) {
+            localStorage.clear();
+            location.reload();
+        }
+    }
+
+    // 主题切换
     function initTheme() {
         const themeBtns = document.querySelectorAll('.theme-btn');
-        themeBtns.forEach(btn => {
-            btn.removeEventListener('click', themeHandler);
-            btn.addEventListener('click', themeHandler);
-        });
-        function themeHandler(e) {
+        const themeHandler = (e) => {
             const theme = e.currentTarget.dataset.theme;
             document.body.classList.remove('light', 'dark', 'warm');
             document.body.classList.add(theme);
             localStorage.setItem('diary_theme', theme);
-        }
+        };
+        themeBtns.forEach(btn => {
+            btn.removeEventListener('click', themeHandler);
+            btn.addEventListener('click', themeHandler);
+        });
         const savedTheme = localStorage.getItem('diary_theme');
         if (savedTheme) {
             document.body.classList.remove('light', 'dark', 'warm');
@@ -671,18 +752,23 @@
             document.body.classList.add('light');
         }
     }
-    document.getElementById("toggleSidebarBtn").addEventListener("click",toggleSidebar);
+
+    // 事件绑定
+    document.getElementById("toggleSidebarBtn").addEventListener("click", toggleSidebar);
     document.getElementById("addDiaryBtn").onclick=()=>showEditView(null,true);
     document.getElementById("addNotebookBtn").onclick=async()=>{ const name=prompt("日记本名称"); if(name){ const newId="nb_"+Date.now(); appData.notebooks.push({ id:newId, name:name, coverImageUrl:"https://picsum.photos/id/101/400/500" }); await saveToCloud(); await switchNotebook(newId); } };
     document.getElementById("importBtn").onclick=()=>{ const input=document.createElement("input"); input.type="file"; input.accept="application/json"; input.onchange=async(e)=>{ const file=e.target.files[0]; if(file){ const reader=new FileReader(); reader.onload=async(ev)=>{ try{ const imported=JSON.parse(ev.target.result); if(imported.notebooks&&imported.entries){ appData=imported; for(let e of appData.entries){ if(!e.cardColor) e.cardColor="#FFF3E6"; if(!e.diaryDate) e.diaryDate=new Date().toISOString().slice(0,10); if(!e.textAlign) e.textAlign="left"; if(!e.contentHtml) e.contentHtml=escapeHtml(e.content).replace(/\n/g,'<br>'); } await saveToCloud(); if(appData.notebooks.length) currentNotebookId=appData.notebooks[0].id; else initDefaultData(); renderNotebookList(); showCoverView(); refreshCurrentUI(); alert("导入成功"); } else alert("格式错误"); } catch(err){ alert("解析失败"); } }; reader.readAsText(file); } }; input.click(); };
     document.getElementById("exportBtn").onclick=()=>{ const dataStr=JSON.stringify(appData,null,2); const blob=new Blob([dataStr],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=`dear_diary_${new Date().toISOString().slice(0,19)}.json`; a.click(); URL.revokeObjectURL(url); };
     document.getElementById("listNotebooksBtn").onclick=()=>document.querySelector(".notebook-list-section").scrollIntoView({behavior:"smooth"});
     document.getElementById("easterEggBtn").onclick=()=>startPetalFall();
+    document.getElementById("logoutBtn").onclick=()=>resetData();
+
     const sidebar=document.getElementById("sidebar");
     sidebar.addEventListener("dblclick",(e)=>{ if(!e.target.closest('.nav-btn') && !e.target.closest('.notebook-item') && !e.target.closest('.toggle-sidebar-btn') && !e.target.closest('.theme-switch')) randomFirework(); });
+
     loadSidebarState();
     initTheme();
-    setTimeout(()=>{ if(!currentUser) showLoginModal(); },100);
+    initAuth();
 </script>
 </body>
 </html>
